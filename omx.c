@@ -204,22 +204,23 @@ void cOmx::GetBufferUsage(int &audio, int &video)
 
 void cOmx::HandlePortBufferEmptied(eOmxComponent component)
 {
-	m_mutex.Lock();
-
+	int* buf;
 	switch (component)
 	{
 	case eVideoDecoder:
-		m_usedVideoBuffers[0]--;
+		buf = &m_usedVideoBuffers[0];
 		break;
 
 	case eAudioRender:
-		m_usedAudioBuffers[0]--;
+		buf = &m_usedAudioBuffers[0];
 		break;
 
 	default:
 		ELOG("HandlePortBufferEmptied: invalid component!");
-		break;
+		return;
 	}
+	m_mutex.Lock();
+	--*buf;
 	m_mutex.Unlock();
 }
 
@@ -228,7 +229,6 @@ void cOmx::HandlePortSettingsChanged(unsigned int portId)
 	if (!m_handlePortEvents)
 		return;
 
-	Lock();
 	DBG("HandlePortSettingsChanged(%d)", portId);
 
 	switch (portId)
@@ -262,6 +262,7 @@ void cOmx::HandlePortSettingsChanged(unsigned int portId)
 				&interlace) != OMX_ErrorNone)
 			ELOG("failed to get video decoder interlace config!");
 
+		Lock();
 		m_videoFrameFormat.width = portdef.format.video.nFrameWidth;
 		m_videoFrameFormat.height = portdef.format.video.nFrameHeight;
 		m_videoFrameFormat.pixelWidth = pixelAspect.nX;
@@ -295,6 +296,7 @@ void cOmx::HandlePortSettingsChanged(unsigned int portId)
 
 		if (m_onStreamStart)
 			m_onStreamStart(m_onStreamStartData);
+		Unlock();
 
 		OMX_CONFIG_IMAGEFILTERPARAMSTYPE filterparam;
 		OMX_INIT_STRUCT(filterparam);
@@ -348,8 +350,6 @@ void cOmx::HandlePortSettingsChanged(unsigned int portId)
 			ELOG("failed to enable video render!");
 		break;
 	}
-
-	Unlock();
 }
 
 void cOmx::Add(const cOmx::Event& event)
@@ -1337,14 +1337,13 @@ bool cOmx::EmptyAudioBuffer(OMX_BUFFERHEADERTYPE *buf)
 	if (!buf)
 		return false;
 
-	Lock();
-	bool ret = true;
 #ifdef DEBUG_BUFFERS
 	DumpBuffer(buf, "A");
 #endif
+	Lock();
+	OMX_ERRORTYPE o = OMX_EmptyThisBuffer(ILC_GET_HANDLE(m_comp[eAudioRender]), buf);
 
-	if (OMX_EmptyThisBuffer(ILC_GET_HANDLE(m_comp[eAudioRender]), buf)
-			!= OMX_ErrorNone)
+	if (o != OMX_ErrorNone)
 	{
 		ELOG("failed to empty OMX audio buffer");
 
@@ -1357,10 +1356,9 @@ bool cOmx::EmptyAudioBuffer(OMX_BUFFERHEADERTYPE *buf)
 		buf->nFilledLen = 0;
 		buf->pAppPrivate = m_spareAudioBuffers;
 		m_spareAudioBuffers = buf;
-		ret = false;
 	}
 	Unlock();
-	return ret;
+	return o == OMX_ErrorNone;
 }
 
 bool cOmx::EmptyVideoBuffer(OMX_BUFFERHEADERTYPE *buf)
@@ -1368,14 +1366,13 @@ bool cOmx::EmptyVideoBuffer(OMX_BUFFERHEADERTYPE *buf)
 	if (!buf)
 		return false;
 
-	Lock();
-	bool ret = true;
 #ifdef DEBUG_BUFFERS
 	DumpBuffer(buf, "V");
 #endif
+	Lock();
+	OMX_ERRORTYPE o = OMX_EmptyThisBuffer(ILC_GET_HANDLE(m_comp[eVideoDecoder]), buf);
 
-	if (OMX_EmptyThisBuffer(ILC_GET_HANDLE(m_comp[eVideoDecoder]), buf)
-			!= OMX_ErrorNone)
+	if (o != OMX_ErrorNone)
 	{
 		ELOG("failed to empty OMX video buffer");
 
@@ -1385,8 +1382,7 @@ bool cOmx::EmptyVideoBuffer(OMX_BUFFERHEADERTYPE *buf)
 		buf->nFilledLen = 0;
 		buf->pAppPrivate = m_spareVideoBuffers;
 		m_spareVideoBuffers = buf;
-		ret = false;
 	}
 	Unlock();
-	return ret;
+	return o == OMX_ErrorNone;
 }
