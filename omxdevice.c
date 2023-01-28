@@ -88,6 +88,10 @@ cOmxDevice::~cOmxDevice()
 
 int cOmxDevice::Init(void)
 {
+	m_omx.SetBufferStallCallback(&OnBufferStall, this);
+	m_omx.SetEndOfStreamCallback(&OnEndOfStream, this);
+	m_omx.SetStreamStartCallback(&OnStreamStart, this);
+
 	if (m_omx.Init(m_display, m_layer) < 0)
 	{
 		ELOG("failed to initialize OMX!");
@@ -98,10 +102,6 @@ int cOmxDevice::Init(void)
 		ELOG("failed to initialize audio!");
 		return -1;
 	}
-	m_omx.SetBufferStallCallback(&OnBufferStall, this);
-	m_omx.SetEndOfStreamCallback(&OnEndOfStream, this);
-	m_omx.SetStreamStartCallback(&OnStreamStart, this);
-
 	cRpiSetup::SetVideoSetupChangedCallback(&OnVideoSetupChanged, this);
 
 	return 0;

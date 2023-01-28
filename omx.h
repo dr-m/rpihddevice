@@ -96,6 +96,7 @@ public:
 			int samplingRate = 0, int frameSize = 0);
 
 	const cVideoFrameFormat *GetVideoFrameFormat(void) {
+		// FIXME: This is being accessed without holding any mutex!
 		return &m_videoFrameFormat;
 	}
 
@@ -164,6 +165,8 @@ private:
 	COMPONENT_T	*m_comp[cOmx::eNumComponents + 1];
 	TUNNEL_T 	 m_tun[cOmx::eNumTunnels + 1];
 
+	/* Updated by Action() thread;
+	read by callers of GetVideoFrameFormat() (without holding a mutex!) */
 	cVideoFrameFormat m_videoFrameFormat;
 
 	bool m_setAudioStartTime;
@@ -186,12 +189,15 @@ private:
 	std::queue<Event> m_portEvents;
 	bool m_handlePortEvents;
 
+	/** pointer to cOmxDevice::OnBufferStall(); constant after Init() */
 	void (*m_onBufferStall)(void*);
 	void *m_onBufferStallData;
 
+	/** pointer to cOmxDevice::OnEndOfStream(); constant after Init() */
 	void (*m_onEndOfStream)(void*);
 	void *m_onEndOfStreamData;
 
+	/** pointer to cOmxDevice::OnStreamStart(); constant after Init() */
 	void (*m_onStreamStart)(void*);
 	void *m_onStreamStartData;
 

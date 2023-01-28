@@ -262,7 +262,6 @@ void cOmx::HandlePortSettingsChanged(unsigned int portId)
 				&interlace) != OMX_ErrorNone)
 			ELOG("failed to get video decoder interlace config!");
 
-		Lock();
 		m_videoFrameFormat.width = portdef.format.video.nFrameWidth;
 		m_videoFrameFormat.height = portdef.format.video.nFrameHeight;
 		m_videoFrameFormat.pixelWidth = pixelAspect.nX;
@@ -296,7 +295,6 @@ void cOmx::HandlePortSettingsChanged(unsigned int portId)
 
 		if (m_onStreamStart)
 			m_onStreamStart(m_onStreamStartData);
-		Unlock();
 
 		OMX_CONFIG_IMAGEFILTERPARAMSTYPE filterparam;
 		OMX_INIT_STRUCT(filterparam);
