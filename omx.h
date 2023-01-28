@@ -87,7 +87,9 @@ public:
 	void SetVideoErrorConcealment(bool startWithValidFrame);
 	void SetVideoDecoderExtraBuffers(int extraBuffers);
 
-	void FlushAudio(void);
+private:
+	inline void FlushAudio(void);
+public:
 	void FlushVideo(bool flushRender = false);
 
 	int SetVideoCodec(cVideoCodec::eCodec codec);

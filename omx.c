@@ -907,10 +907,8 @@ void cOmx::SetVideoErrorConcealment(bool startWithValidFrame)
 		ELOG("failed to set video decode error concealment failed\n");
 }
 
-void cOmx::FlushAudio(void)
+inline void cOmx::FlushAudio(void)
 {
-	Lock();
-
 	if (OMX_SendCommand(ILC_GET_HANDLE(m_comp[eAudioRender]), OMX_CommandFlush, 100, NULL) != OMX_ErrorNone)
 		ELOG("failed to flush audio render!");
 
@@ -919,7 +917,6 @@ void cOmx::FlushAudio(void)
 		VCOS_EVENT_FLAGS_SUSPEND);
 
 	ilclient_flush_tunnels(&m_tun[eClockToAudioRender], 1);
-	Unlock();
 }
 
 void cOmx::FlushVideo(bool flushRender)
