@@ -624,17 +624,21 @@ void cOmx::StartClock(bool waitForVideo, bool waitForAudio, int preRollMs)
 	cstate.eState = OMX_TIME_ClockStateRunning;
 	cstate.nOffset = ToOmxTicks(-1000LL * preRollMs);
 
-	if (waitForVideo)
+	if (waitForVideo || waitForAudio)
 	{
 		cstate.eState = OMX_TIME_ClockStateWaitingForStartTime;
-		m_setVideoStartTime = true;
-		cstate.nWaitMask |= OMX_CLOCKPORT0;
-	}
-	if (waitForAudio)
-	{
-		cstate.eState = OMX_TIME_ClockStateWaitingForStartTime;
-		m_setAudioStartTime = true;
-		cstate.nWaitMask |= OMX_CLOCKPORT1;
+		m_mutex.Lock();
+		if (waitForVideo)
+		{
+			m_setVideoStartTime = true;
+			cstate.nWaitMask |= OMX_CLOCKPORT0;
+		}
+		if (waitForAudio)
+		{
+			m_setAudioStartTime = true;
+			cstate.nWaitMask |= OMX_CLOCKPORT1;
+		}
+		m_mutex.Unlock();
 	}
 
 	if (OMX_SetConfig(ILC_GET_HANDLE(m_comp[eClock]),
@@ -884,12 +888,13 @@ void cOmx::StopVideo(void)
 
 void cOmx::StopAudio(void)
 {
-	Lock();
-
 	// put audio render onto idle
 	ilclient_flush_tunnels(&m_tun[eClockToAudioRender], 1);
 	ilclient_disable_tunnel(&m_tun[eClockToAudioRender]);
 	ilclient_change_component_state(m_comp[eAudioRender], OMX_StateIdle);
+
+	Lock();
+
 	ilclient_disable_port_buffers(m_comp[eAudioRender], 100,
 			m_spareAudioBuffers, NULL, NULL);
 
@@ -921,6 +926,8 @@ inline void cOmx::FlushAudio(void)
 
 void cOmx::FlushVideo(bool flushRender)
 {
+	/* This is called by Init() before Start(), and by
+	cOmxDevice::FlushStreams() after StopClock() */
 	Lock();
 
 	if (OMX_SendCommand(ILC_GET_HANDLE(m_comp[eVideoDecoder]), OMX_CommandFlush, 130, NULL) != OMX_ErrorNone)
@@ -1014,8 +1021,6 @@ void cOmx::SetVideoDecoderExtraBuffers(int extraBuffers)
 int cOmx::SetupAudioRender(cAudioCodec::eCodec outputFormat, int channels,
 		cRpiAudioPort::ePort audioPort, int samplingRate, int frameSize)
 {
-	Lock();
-
 	OMX_AUDIO_PARAM_PORTFORMATTYPE format;
 	OMX_INIT_STRUCT(format);
 	format.nPortIndex = 100;
@@ -1031,6 +1036,8 @@ int cOmx::SetupAudioRender(cAudioCodec::eCodec outputFormat, int channels,
 		outputFormat == cAudioCodec::eAAC  ? OMX_AUDIO_CodingAAC :
 		outputFormat == cAudioCodec::eDTS  ? OMX_AUDIO_CodingDTS :
 				OMX_AUDIO_CodingAutoDetect;
+
+	Lock();
 
 	if (OMX_SetParameter(ILC_GET_HANDLE(m_comp[eAudioRender]),
 			OMX_IndexParamAudioPortFormat, &format) != OMX_ErrorNone)
