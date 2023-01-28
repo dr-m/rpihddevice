@@ -92,7 +92,7 @@ private:
 public:
 	void FlushVideo(bool flushRender = false);
 
-	int SetVideoCodec(cVideoCodec::eCodec codec);
+	void SetVideoCodec(cVideoCodec::eCodec codec);
 	int SetupAudioRender(cAudioCodec::eCodec outputFormat,
 			int channels, cRpiAudioPort::ePort audioPort,
 			int samplingRate = 0, int frameSize = 0);
@@ -125,7 +125,11 @@ private:
 			ePortSettingsChanged,
 			eConfigChanged,
 			eEndOfStream,
-			eBufferEmptied
+			eBufferEmptied,
+			eStopVideo,
+			eStopAudio,
+			eSetVideoCodec,
+			eFlushVideo,
 		};
 		Event(eEvent _event, int _data)
 			: event(_event), data(_data) { };
@@ -203,6 +207,10 @@ private:
 	void (*m_onStreamStart)(void*);
 	void *m_onStreamStartData;
 
+	void HandleStopVideo(void);
+	void HandleStopAudio(void);
+	void HandleSetVideoCodec(cVideoCodec::eCodec codec);
+	void HandleFlushVideo(bool flushRender);
 	void HandlePortBufferEmptied(eOmxComponent component);
 	void HandlePortSettingsChanged(unsigned int portId);
 	void SetPARChangeCallback(bool enable);

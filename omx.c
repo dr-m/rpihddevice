@@ -136,6 +136,24 @@ void cOmx::Action(void)
 			case Event::eShutdown:
 				return;
 
+			case Event::eStopVideo:
+				HandleStopVideo();
+				break;
+
+			case Event::eStopAudio:
+				HandleStopAudio();
+				break;
+
+			case Event::eSetVideoCodec:
+				HandleSetVideoCodec(static_cast
+						    <cVideoCodec::eCodec>
+						    (event.data));
+				break;
+
+			case Event::eFlushVideo:
+				HandleFlushVideo(event.data);
+				break;
+
 			case Event::ePortSettingsChanged:
 				HandlePortSettingsChanged(event.data);
 				break;
@@ -502,7 +520,7 @@ int cOmx::Init(int display, int layer)
 	SetBufferStallThreshold(20000);
 	SetClockReference(cOmx::eClockRefVideo);
 
-	FlushVideo();
+	HandleFlushVideo(false);
 	FlushAudio();
 
 	Start();
@@ -849,8 +867,26 @@ void cOmx::SetMute(bool mute)
 
 void cOmx::StopVideo(void)
 {
-	Lock();
+	Add(Event(Event::eStopVideo, 0));
+}
 
+void cOmx::StopAudio(void)
+{
+	Add(Event(Event::eStopAudio, 0));
+}
+
+void cOmx::SetVideoCodec(cVideoCodec::eCodec codec)
+{
+	Add(Event(Event::eSetVideoCodec, codec));
+}
+
+void cOmx::FlushVideo(bool flushRender)
+{
+	Add(Event(Event::eFlushVideo, flushRender));
+}
+
+void cOmx::HandleStopVideo(void)
+{
 	// disable port buffers and allow video decoder to reconfig
 	ilclient_disable_port_buffers(m_comp[eVideoDecoder], 130,
 			m_spareVideoBuffers, NULL, NULL);
@@ -882,24 +918,19 @@ void cOmx::StopVideo(void)
 	ilclient_flush_tunnels(&m_tun[eVideoSchedulerToVideoRender], 1);
 	ilclient_disable_tunnel(&m_tun[eVideoSchedulerToVideoRender]);
 	ilclient_change_component_state(m_comp[eVideoRender], OMX_StateIdle);
-
-	Unlock();
 }
 
-void cOmx::StopAudio(void)
+void cOmx::HandleStopAudio(void)
 {
 	// put audio render onto idle
 	ilclient_flush_tunnels(&m_tun[eClockToAudioRender], 1);
 	ilclient_disable_tunnel(&m_tun[eClockToAudioRender]);
 	ilclient_change_component_state(m_comp[eAudioRender], OMX_StateIdle);
 
-	Lock();
-
 	ilclient_disable_port_buffers(m_comp[eAudioRender], 100,
 			m_spareAudioBuffers, NULL, NULL);
 
 	m_spareAudioBuffers = 0;
-	Unlock();
 }
 
 void cOmx::SetVideoErrorConcealment(bool startWithValidFrame)
@@ -924,12 +955,8 @@ inline void cOmx::FlushAudio(void)
 	ilclient_flush_tunnels(&m_tun[eClockToAudioRender], 1);
 }
 
-void cOmx::FlushVideo(bool flushRender)
+void cOmx::HandleFlushVideo(bool flushRender)
 {
-	/* This is called by Init() before Start(), and by
-	cOmxDevice::FlushStreams() after StopClock() */
-	Lock();
-
 	if (OMX_SendCommand(ILC_GET_HANDLE(m_comp[eVideoDecoder]), OMX_CommandFlush, 130, NULL) != OMX_ErrorNone)
 		ELOG("failed to flush video decoder!");
 
@@ -946,13 +973,10 @@ void cOmx::FlushVideo(bool flushRender)
 	ilclient_flush_tunnels(&m_tun[eClockToVideoScheduler], 1);
 
 	m_setVideoDiscontinuity = true;
-	Unlock();
 }
 
-int cOmx::SetVideoCodec(cVideoCodec::eCodec codec)
+void cOmx::HandleSetVideoCodec(cVideoCodec::eCodec codec)
 {
-	Lock();
-
 	if (ilclient_change_component_state(m_comp[eVideoDecoder], OMX_StateIdle) != 0)
 		ELOG("failed to set video decoder to idle state!");
 
@@ -1002,9 +1026,6 @@ int cOmx::SetVideoCodec(cVideoCodec::eCodec codec)
 		ELOG("failed to setup up tunnel from clock to video scheduler!");
 
 	m_handlePortEvents = true;
-
-	Unlock();
-	return 0;
 }
 
 void cOmx::SetVideoDecoderExtraBuffers(int extraBuffers)
